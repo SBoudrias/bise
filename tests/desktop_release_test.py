@@ -73,7 +73,8 @@ def fake_app(root):
                 '<key>CFBundleIdentifier</key><string>dev.bise.x</string><key>CFBundleExecutable</key><string>X</string>'
                 '<key>CFBundlePackageType</key><string>FMWK</string></dict></plist>')
     for dst in ("Contents/MacOS/bise", "Contents/Resources/bin/sb-core", "Contents/Resources/bin/bise",
-                "Contents/Resources/bin/bend-jsrt", "Contents/Frameworks/X.framework/Versions/A/X"):
+                "Contents/Resources/bin/repl-live", "Contents/Resources/bin/bend-jsrt",
+                "Contents/Frameworks/X.framework/Versions/A/X"):
         p = os.path.join(app, dst)
         shutil.copy("/usr/bin/true", p)
         subprocess.run(["codesign", "--remove-signature", p], capture_output=True)
@@ -129,6 +130,8 @@ def test_signs_a_fake_bundle():
         check("audio-input" in e and "allow-jit" not in e, "the nested bise.app has the terminal's entitlements: %s" % e)
         e = subprocess.run(["codesign", "-d", "--entitlements", ":-", os.path.join(bindir, "bend-jsrt")], capture_output=True, text=True).stdout
         check("allow-jit" in e and "audio-input" not in e, "bend-jsrt: V8's own file: %s" % e)
+        e = subprocess.run(["codesign", "-d", "--entitlements", ":-", os.path.join(bindir, "repl-live")], capture_output=True, text=True).stdout
+        check("disable-library-validation" in e and "allow-jit" not in e, "repl-live: the runtime's own file: %s" % e)
         # the same bundle as a terminal release's app root (build-dist.sh: mac_sign.py bundle)
         root = os.path.join(t, "app")
         os.makedirs(root)

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- repl-live, the Bend runtime's live REPL: its hardened runtime entitlements, one file for
+     both products (the terminal release, scripts/dist_sign.py, and the desktop app,
+     scripts/desktop_sign.py: mac_sign.entitlements_for gives this path to both, like bend-jsrt's
+     file; tests/mac_sign_test.py and tests/desktop_release_test.py pin it). The runtime's TLS
+     (bend/vendor/http, wire.c) dlopens OpenSSL 3 at the first HTTPS call (BEND_LIBSSL, else
+     libssl.3.dylib): on a Mac that library is Homebrew's, ad hoc signed (no team), and a
+     Developer ID binary's library validation refuses to map it — every provider turn of
+     v2026.10.2-37 to -40 ended in "TLS handshake with <host> failed (tls 2 TLS needs OpenSSL 3
+     (libssl.3); set BEND_LIBSSL to its path)" while ad hoc builds (up to -36) worked. This key
+     alone turns library validation off for the one binary that loads the library; every other
+     piece keeps it, and their files stay free of the key (pinned in the tests). Notarization
+     accepts the key: what Apple rejects is get-task-allow, and apps that load system-installed
+     libraries ship with it. -->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>

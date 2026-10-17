@@ -4,9 +4,10 @@
 
   - what is code (thin, fat, Java class, text), the order (deepest first, the top last), the
     codesign argv (hardened, a timestamp only with a certificate);
-  - the entitlements: one folder (packaging/entitlements/), bend-jsrt's file the same in both
-    pipelines (the terminal's and the desktop's), bise.app's on the CLI bundle and its
-    executable, never on a library;
+  - the entitlements: one folder (packaging/entitlements/), bend-jsrt's and repl-live's files
+    the same in both pipelines (the terminal's and the desktop's; the runtime's TLS dlopens the
+    system's OpenSSL 3, so its REPL ships library validation off), bise.app's on the CLI bundle
+    and its executable, never on a library;
   - the designated requirement: a Developer ID one names the id and the team, never a cdhash;
   - the bundle builder: bise.app's tree, Info.plist and the bise link;
   - an official release never signs ad hoc: --required without an identity or notary credentials
@@ -107,7 +108,10 @@ def test_entitlements():
     check(E(".", "bundle", S.ENTITLEMENTS, "dev.bise.desktop") == S.ENTITLEMENTS, "the desktop app keeps its own")
     check(E("Contents/MacOS/bise", "exec", S.ENTITLEMENTS, None, ["Contents/Resources/bin/bise.app"]) == S.ENTITLEMENTS,
           "the desktop's own executable keeps its own")
-    check(E("sb-core", "exec", None) is None and E("repl-live", "exec", None) is None, "the Bend binaries need nothing")
+    check(E("Contents/Resources/bin/repl-live", "exec", S.ENTITLEMENTS) == E("repl-live", "exec", None) == M.REPL_ENT,
+          "repl-live: one file in both pipelines (its TLS dlopens the system's OpenSSL 3)")
+    check(E("sb-core", "exec", None) is None and E("repl-scripted", "exec", None) is None,
+          "the other Bend binaries need nothing")
     check(E("bise Computer Use.app", "bundle", None, "dev.bise.computer-use") is None, "the helper: none in a release")
     for f in (M.CLI_ENT, M.JSRT_ENT, M.DESKTOP_ENT):
         with open(f, "rb") as fh:
@@ -120,6 +124,10 @@ def test_entitlements():
     with open(M.CLI_ENT, "rb") as fh:
         c = plistlib.load(fh)
     check(c.get("com.apple.security.device.audio-input") is True and "com.apple.security.cs.allow-jit" not in c, "bise: the mic, no JIT")
+    with open(M.REPL_ENT, "rb") as fh:
+        r = plistlib.load(fh)
+    check(r.get("com.apple.security.cs.disable-library-validation") is True and len(r) == 1,
+          "repl-live: library validation off, and nothing else (notarization takes the key: Apple refuses get-task-allow, not this one)")
 
 
 def test_designated_requirement():
@@ -220,7 +228,7 @@ def fake_root(t):
     subprocess.run(["codesign", "--remove-signature", exe], capture_output=True)
     M.bundle(os.path.join(root, "bise.app"), exe, M.CLI_ID, "v1", link=True)
     os.symlink("bise", os.path.join(root, "sb"))
-    for b in ("sb-core", "bend-jsrt"):
+    for b in ("sb-core", "bend-jsrt", "repl-live"):
         shutil.copy(exe, os.path.join(root, b))
     h = os.path.join(root, "bise Computer Use.app", "Contents")
     os.makedirs(os.path.join(h, "MacOS"))
@@ -243,11 +251,14 @@ def test_signs_a_fake_root():
         check(rels.index("bise.app/Contents/MacOS/bise") < rels.index("bise.app"), "inside out")
         check("bise" not in rels and "sb" not in rels, "links are never signed")
         ents = {r: e for r, _, e in steps}
-        check(ents["bise.app"] == M.CLI_ENT and ents["bend-jsrt"] == M.JSRT_ENT and ents["sb-core"] is None, ents)
+        check(ents["bise.app"] == M.CLI_ENT and ents["bend-jsrt"] == M.JSRT_ENT
+              and ents["repl-live"] == M.REPL_ENT and ents["sb-core"] is None, ents)
         dv = subprocess.run(["codesign", "-dv", os.path.join(root, "bise.app")], capture_output=True, text=True).stderr
         check("Identifier=dev.bise.cli" in dv, dv)
         e = subprocess.run(["codesign", "-d", "--entitlements", ":-", os.path.join(root, "bend-jsrt")], capture_output=True, text=True).stdout
         check("allow-jit" in e, "bend-jsrt carries V8's entitlements")
+        e = subprocess.run(["codesign", "-d", "--entitlements", ":-", os.path.join(root, "repl-live")], capture_output=True, text=True).stdout
+        check("disable-library-validation" in e, "repl-live carries the TLS library's entitlement")
         r = subprocess.run([os.path.join(root, "bise")], capture_output=True)
         check(r.returncode == 0, "the signed bise runs through its link")
 

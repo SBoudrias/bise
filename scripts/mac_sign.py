@@ -39,6 +39,10 @@ DESKTOP_ENT = os.path.join(ENT_DIR, "desktop.plist")
 CLI_ENT = os.path.join(ENT_DIR, "bise.plist")
 # V8: the same file in both products
 JSRT_ENT = os.path.join(ENT_DIR, "bend-jsrt.plist")
+# the runtime's live REPL: the same file in both products — its TLS dlopens the system's
+# OpenSSL 3 at run time, and a Developer ID binary's library validation would refuse
+# Homebrew's ad hoc libssl.3.dylib (packaging/entitlements/repl-live.plist)
+REPL_ENT = os.path.join(ENT_DIR, "repl-live.plist")
 CLI_ID = "dev.bise.cli"
 DEV_ID = "dev.bise.bise"
 BUNDLES = (".app", ".framework", ".xpc", ".appex", ".bundle")
@@ -149,14 +153,19 @@ def in_cli(rel, cli_bundles):
 def entitlements_for(rel, kind, default=None, bid=None, cli_bundles=()):
     """The entitlements file of one piece, or None. Pure.
       - bend-jsrt: JSRT_ENT, in both products;
+      - repl-live: REPL_ENT, in both products (the runtime's TLS dlopens the system's OpenSSL 3,
+        so its REPL ships with library validation off: a Developer ID binary refuses Homebrew's
+        ad hoc libssl.3.dylib, and every provider turn failed with it on);
       - the CLI's bundle (id CLI_ID or DEV_ID) and its main executable: CLI_ENT;
       - a library or a framework: never;
       - else an executable or an app: the caller's default (the desktop's file; None for a
-        terminal release's other binaries, the Bend binaries need nothing)."""
+        terminal release's other binaries, the rest of the Bend runtime needs nothing)."""
     if kind == "lib":
         return None
     if kind == "exec" and os.path.basename(rel) == "bend-jsrt":
         return JSRT_ENT
+    if kind == "exec" and os.path.basename(rel) == "repl-live":
+        return REPL_ENT
     if (kind == "bundle" and bid in (CLI_ID, DEV_ID)) or (kind == "exec" and in_cli(rel, cli_bundles)):
         return CLI_ENT
     if kind == "exec" or (kind == "bundle" and is_app(rel)):

@@ -210,7 +210,10 @@ the old `release.sh` ("an EDR quarantine … must FAIL LOUDLY"). Consequences:
   terminal release's darwin app root is `bise.app` (dev.bise.cli) + the
   `bise` link, signed by `scripts/dist_sign.py` (the signing core
   `scripts/mac_sign.py`, shared with the desktop's `desktop_sign.py`;
-  entitlements in `packaging/entitlements/`), notarized in one submission
+  entitlements in `packaging/entitlements/`, one file per piece:
+  `bise.plist` on the CLI bundle, `bend-jsrt.plist` on V8, `repl-live.plist`
+  on the runtime's REPL — its TLS dlopens the system's OpenSSL 3, so it
+  ships with library validation off), notarized in one submission
   (`scripts/notary.py`), bise.app and the helper stapled. The bullets
   below are the requirement it meets.
 - **Every macOS binary is signed with a Developer ID Application
@@ -500,7 +503,8 @@ OFF until the repository variable `DESKTOP_RELEASE` is `on`.
   microphone, Apple Events) on the executables and the apps; before it,
   `cli_bundle` makes the runtime's `bin/bise.app` (dev.bise.cli, the
   terminal release's bundle, its `bise.plist`) with `bin/bise` a link into
-  it, and bend-jsrt gets `bend-jsrt.plist` (`scripts/mac_sign.py`). Then
+  it, and bend-jsrt gets `bend-jsrt.plist`, repl-live `repl-live.plist`
+  (`scripts/mac_sign.py`). Then
   notarytool (App Store Connect API key) and stapler on the app, the zip for the
   updater (`ditto`), the DMG (dmgbuild: the designer's window,
   `apps/desktop/resources/dmg/layout.json` and `background.png` + `@2x`),
