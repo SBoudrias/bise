@@ -187,6 +187,24 @@ export function crumbOf(route: Route, name: (project: string) => string): string
   }
 }
 
+/**
+ * The crumb's segments before the last, as his way back along them (his ask, desktop-history's
+ * third way besides ‹ and esc): each earlier one a route, the last (where he is) plain. The
+ * project's name → its main's thread, an agent's name (a review's, a log's) → its thread,
+ * settings' word → its root; a screen's own word ('agents', 'changes'…) is where he is, and the
+ * words that name one thing of the project (a feature, a commit, a branch) stay plain. Pure.
+ */
+export function crumbGoOf(route: Route, name: (project: string) => string): { c: string; go?: Route }[] {
+  return crumbOf(route, name).slice(0, -1).map((c, i) => {
+    if ('project' in route && route.project !== '' && i === 0 && c === name(route.project))
+      return { c, go: { screen: 'thread', project: route.project, agent: MAIN } };
+    if ((route.screen === 'review' || route.screen === 'log') && i === 1)
+      return { c, go: { screen: 'thread', project: route.project, agent: route.agent } };
+    if (c === panel.crumb_settings) return { c, go: { screen: 'settings' } };
+    return { c };
+  });
+}
+
 /** Under this width the sidebar (and the right panel) slide over the window. */
 export const NARROW_PX = 1000;
 /** From this width the right panel is open by default. */

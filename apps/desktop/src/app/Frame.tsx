@@ -13,11 +13,11 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { Chip, IconButton, Kbd, Pearl, PickerPop } from "@/ds";
+import { Chip, IconButton, Kbd, Pearl, PickerPop, Press } from "@/ds";
 import { useModHeld } from "./held";
 import { useProjects } from "@/store";
 import { keep } from "./keep";
-import { formatRoute } from "./route";
+import { formatRoute, type Route } from "./route";
 import { type Side, useRoute, useRouter } from "./router";
 import { TitleStatus } from "./TitleStatus";
 import {
@@ -29,6 +29,7 @@ import {
   UNFOLD_PX,
 } from "./resize";
 import {
+  crumbGoOf,
   crumbOf,
   NARROW_PX,
   PANEL_OPEN_PX,
@@ -401,6 +402,7 @@ function StatusSlot({ children }: { children?: ReactNode }) {
 /** The titlebar over the main column: the sidebar button and what waits when the sidebar is away, the crumb, the panel's button. */
 export function Titlebar({ frame }: { frame: FrameState }) {
   const route = useRoute();
+  const router = useRouter();
   const rows = useProjects();
   const waits = useWaitingTotal();
   // what waits on him in the right bar's place: one project's, or every project's on bise's thread
@@ -408,6 +410,8 @@ export function Titlebar({ frame }: { frame: FrameState }) {
     frame.panel === undefined ? 0 : frame.panel.project === "" ? waits : (rows.find((r) => r.project === frame.panel?.project)?.waits ?? 0);
   const name = (p: string) => rows.find((r) => r.project === p)?.name ?? p;
   const crumb = crumbOf(route, name);
+  // an earlier crumb's route, by its place (the last: where he is, no route) — crumbGoOf, pure
+  const go = crumbGoOf(route, name).map((s) => s.go);
   const panelOn =
     frame.panel !== undefined && (frame.panel.docked || frame.over === "panel");
   return (
@@ -454,7 +458,21 @@ export function Titlebar({ frame }: { frame: FrameState }) {
             className={i === crumb.length - 1 ? "last" : undefined}
           >
             {i > 0 && <span className="app-crumb-sep">›</span>}
-            {c}
+            {go[i] === undefined ? (
+              c
+            ) : (
+              // an earlier crumb goes where it names (his ask): the project's main, that agent,
+              // that screen; the last one is where he is, plain
+              <Press
+                look="app-crumb-go"
+                onClick={() => {
+                  router.go(go[i] as Route);
+                }}
+                data-testid={`app.title.crumb.${String(i)}`}
+              >
+                {c}
+              </Press>
+            )}
           </span>
         ))}
       </span>

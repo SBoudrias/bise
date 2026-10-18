@@ -550,6 +550,12 @@ body:has(.app-shell) {
   margin: 0 var(--s-2);
   color: var(--c-text-3);
 }
+/* an earlier crumb (his ask): it goes where it names — the project's main, that agent, that
+   screen; the last one is where he is, plain. text-2 as the crumb, ink and underlined on hover */
+.app-crumb-go:hover {
+  color: var(--c-text);
+  text-decoration: underline;
+}
 /* ‹ › right after the lights (designer's desktop-history): 28 px, 4 apart, the crumb at 8 (the
    title's gap is 10, so the pair takes 2 back); nothing on a side: faint at 45%, no hover */
 .app-hist {

@@ -1,7 +1,7 @@
 // The sidebar's signs and words, the frame's widths (designer's desktop-screens v6/v7, signed).
 import { describe, expect, it } from 'vitest';
 import type { Agent, ProjectRow } from '@/proto';
-import { computerDot, crumbOf, folds, moreWords, panelAt, panelWords, panelProject, projectSide, signOf, turnShort } from './side';
+import { computerDot, crumbGoOf, crumbOf, folds, moreWords, panelAt, panelWords, panelProject, projectSide, signOf, turnShort } from './side';
 import { keyAction, type KeyLike } from './keys';
 import { newWords } from './Sidebar';
 
@@ -87,6 +87,35 @@ describe('the frame', () => {
     // /agents and /archived are two lists, each its own crumb (designer m_19489)
     expect(crumbOf({ screen: 'agents', project: 'p' }, name)).toEqual(['storefront', 'agents']);
     expect(crumbOf({ screen: 'agents', project: 'p', archived: true }, name)).toEqual(['storefront', 'archived']);
+  });
+  it("an earlier crumb goes where it names: the project's main, that agent, that screen; the last stays plain", () => {
+    const name = () => 'storefront';
+    // an agent's thread: the agent's name is where he is (the last, plain), the project → its main
+    expect(crumbGoOf({ screen: 'thread', project: 'p', agent: 'perf' }, name)).toEqual([
+      { c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } },
+    ]);
+    // a log: the project → its main, the agent → its thread, its own word stays plain (the last)
+    expect(crumbGoOf({ screen: 'log', project: 'p', agent: 'perf' }, name)[1]).toEqual({ c: 'perf', go: { screen: 'thread', project: 'p', agent: 'perf' } });
+    // a project's lists (agents, archived, changes…): their word is the last, where he is; the project's name is the way back
+    expect(crumbGoOf({ screen: 'agents', project: 'p' }, name)).toEqual([{ c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } }]);
+    expect(crumbGoOf({ screen: 'agents', project: 'p', archived: true }, name)).toEqual([{ c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } }]);
+    expect(crumbGoOf({ screen: 'changes', project: 'p' }, name)).toEqual([{ c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } }]);
+    expect(crumbGoOf({ screen: 'prs', project: 'p' }, name)).toEqual([{ c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } }]);
+    expect(crumbGoOf({ screen: 'environments', project: 'p' }, name)).toEqual([{ c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } }]);
+    expect(crumbGoOf({ screen: 'artifacts', project: 'p' }, name)).toEqual([{ c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } }]);
+    // a feature, a commit and a branch: their word (the last) names one thing of the project, so the
+    // project's name is the only way back
+    expect(crumbGoOf({ screen: 'feature', project: 'p', name: 'billing' }, name)).toEqual([{ c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } }]);
+    expect(crumbGoOf({ screen: 'commit', project: 'p', sha: 'a1b2c3d4e5f6' }, name)).toEqual([{ c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } }]);
+    expect(crumbGoOf({ screen: 'branch', project: 'p', branch: 'sb/x' }, name)).toEqual([{ c: 'storefront', go: { screen: 'thread', project: 'p', agent: 'main' } }]);
+    // settings: its word goes to its root, the page's stays plain; a report and a lab: nothing before
+    expect(crumbGoOf({ screen: 'settings', page: 'general' }, name)).toEqual([{ c: 'settings', go: { screen: 'settings' } }]);
+    expect(crumbGoOf({ screen: 'report' }, name)).toEqual([]);
+    // one place: nothing to go
+    expect(crumbGoOf({ screen: 'thread', project: 'p', agent: 'main' }, name)).toEqual([]);
+    expect(crumbGoOf({ screen: 'bise' }, name)).toEqual([]);
+    // every project's artifacts: its word is the only crumb, the last
+    expect(crumbGoOf({ screen: 'artifacts', project: '' }, name)).toEqual([]);
   });
   it('the keys: ⌘\\ the sidebar, ⌥⌘0 the panel, ⌘N add a project, ⌘, settings', () => {
     const k = (code: string, m: Partial<KeyLike> = {}): KeyLike => ({ key: '', code, metaKey: true, altKey: false, ctrlKey: false, shiftKey: false, ...m });
