@@ -12,7 +12,7 @@ import { Act, Button, Group, Toggle, type GroupItem } from '@/ds';
 import { tipAttrs } from '@/ds/tip';
 import { whenWords } from '@/artifacts/model';
 import { updatedTip } from '@/app/tipwords';
-import { shortVersion } from '@/app/UpdateLine';
+import { shortVersion } from '@/shared/version';
 import { settings } from '@/proto/words.gen';
 
 /** Where a test build gets its first Developer ID one (designer m_25699). */

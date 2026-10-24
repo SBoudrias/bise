@@ -22,6 +22,7 @@ import { installGuard } from './guard';
 import { startHelper } from './helper/run';
 import { adoptLoginEnv } from './loginenv';
 import { appName } from './appname';
+import { aboutPanel } from './about';
 import { micHeld, onCoreEvent, sendToCore, startCore, stopCore } from './core/ipc';
 import { configOfPrefs } from './helper/config';
 import { Shots } from './helper/shot';
@@ -319,7 +320,12 @@ void app.whenReady().then(() => {
   ipcMain.handle(IPC.updateInstall, (_e, route: unknown) => updates?.install(typeof route === 'string' ? route : null) ?? false);
   ipcMain.handle(IPC.updateRevert, () => updates?.revert() ?? false);
   ipcMain.handle(IPC.updateMove, () => updates?.move() ?? false);
-  ipcMain.handle(IPC.updateInfo, () => fakeDist?.info ?? updates?.info() ?? { version: null, updated: null });
+  const updateInfo = () => fakeDist?.info ?? updates?.info() ?? { version: null, updated: null };
+  ipcMain.handle(IPC.updateInfo, updateInfo);
+  // the About panel (bise › About bise): his app's name and its real build (about.ts), the same
+  // version the settings' update row says — Electron's default panel would say package.json's
+  // 'bise-desktop' '0.0.0', a file a release pack never touches
+  app.setAboutPanelOptions(aboutPanel(app.name, updateInfo().version));
   // his try's swap to the staged gated build, from inside (update/tryrun.ts)
   installTrySwapIpc({ testMode, env: process.env, execPath: process.execPath, packaged: app.isPackaged, realHome: userInfo().homedir, updatesDir });
   // after a swap, the screen he was on (written before it); a quiet moment's reopens without focus

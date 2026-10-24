@@ -13,11 +13,7 @@ import { ShaWords } from './ReloadLine';
 import { useRoute } from './router';
 import { formatRoute } from './route';
 import { RANK, type StatusPart } from './status';
-
-/** A release's name as he reads it: the version, not the tag ('desktop-v2026.10.2' → '2026.10.2', designer m_25699). Pure. */
-export function shortVersion(v: string): string {
-  return v.replace(/^desktop-v/, '').replace(/^v(?=\d)/, '');
-}
+import { shortVersion } from '@/shared/version';
 
 /** The line's words and its one action, or none. Pure. */
 export function updateLine(s: UpdateState): { text: string; act: 'restart' | 'go back' } | null {
