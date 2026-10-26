@@ -27,6 +27,11 @@ describe('notify plan: what one notification says (designer m_14211)', () => {
     // a plan an agent proposes (plan-ok): its own words
     expect(titleOf(card({ kind: 'plan', agent: 'lean-install' }), acme, 'en')).toBe('lean-install proposes a plan · acme');
     expect(titleOf(card({ kind: 'plan', agent: 'lean-install' }), acme, 'fr')).toBe('lean-install propose un plan · acme');
+    // the one update prompt is bise's own, never a project's (single-update)
+    const upd = noteOf(card({ kind: 'update', agent: 'main', place: 'release:7e187ba', approval: true, options: [{ n: 1, label: 'update now' }, { n: 2, label: 'later' }] }), acme, 'en', false);
+    expect(upd.title).toBe('bise asks');
+    expect(upd.release).toBe('7e187ba');
+    expect(noteOf(card(), acme, 'en', false).release).toBeUndefined();
   });
 
   it("a question: its choices then 'open in bise', a reply field; the body is the question as written", () => {

@@ -2,8 +2,11 @@
 // la notification native ... Pas de notification nécessaire si j'étais focused sur l'app au moment de
 // la réception »; page inbox-native v2; designer m_14211's words). Pure: which cards are new, whether
 // one knocks, what its notification says and offers, what a button or a reply answers. The shell is
-// run.ts. Owner: amb-mac.
+// run.ts. One update prompt (single-update): a new-release item is bise's own (no project in its
+// title) and its answer goes to every hub that asks — its notification says so with `release`, and
+// run.ts knocks once per release. Owner: amb-mac.
 import type { Card } from '../../proto';
+import { isUpdate, releaseKey } from '../../shared/update';
 
 /** The words, en and fr (designer m_14211). */
 export const WORDS = {
@@ -60,6 +63,8 @@ export type Note = {
   readonly silent: boolean;
   /** group: the project */
   readonly group: string;
+  /** the new-release item this notification stands for (single-update): its answer goes to every hub */
+  readonly release?: string;
 };
 
 /** A project's facts the title needs (from the core's projects rows). */
@@ -71,7 +76,8 @@ export const cardKey = (project: string, id: number): string => `${project}#${id
  * card names what it archives. */
 export function titleOf(c: Card, place: Place | undefined, lang: Lang): string {
   const who = c.agent === 'main' || c.agent === '' ? 'bise' : c.agent;
-  const where = place === undefined || place.home ? '' : ` · ${place.name}`;
+  // the one update prompt is bise's own (single-update), never a project's
+  const where = place === undefined || place.home || isUpdate(c) ? '' : ` · ${place.name}`;
   // main's drop card is about its agent (drop-card, designer m_35655): 'archive sculpt-engine?'
   if (c.kind === 'drop') return `${WORDS[lang].archive(c.agent)}${where}`;
   // a plan an agent proposes (plan-ok): 'lean-install proposes a plan'
@@ -108,6 +114,9 @@ export function noteOf(c: Card, place: Place | undefined, lang: Lang, quiet: boo
     placeholder: w.placeholder,
     silent: quiet,
     group: c.project,
+    // a new-release item answers everywhere (single-update): run.ts sends its answer to every
+    // hub that asks, and the release knocks once
+    ...(releaseKey(c) !== '' ? { release: releaseKey(c) } : {}),
   };
 }
 

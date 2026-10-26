@@ -5,6 +5,9 @@
 // pick in the window ({cmd:'answer'}, the core unchanged); a click opens the window on the inbox; a
 // card answered anywhere takes its notification away. An answer that can't reach the core says so
 // in one more notification.
+// One update prompt (single-update): a release's items knock once — the first of them only, the
+// release's notification standing for them all — and its answer goes to every hub that asks, each
+// by its own card id, as the window's does (updatePeers).
 //
 // Test mode never posts: each step is a NOTIFY_LINE on stdout, and the harness plays his side
 // through two main-process globals: __biseTestFocused (whether a bise window has the keys) and
@@ -17,6 +20,7 @@ import { BrowserWindow, Notification, shell } from 'electron';
 import { NOTIFY_LINE, type NotifyAuth } from '../../shared/api';
 import type { Card } from '../../proto';
 import { Arrivals, bundleIdOf, cardRoute, effectOf, knocks, ncPrefsOf, noteOf, testNote, WORDS, type Gesture, type Lang, type Note, type Place } from './plan';
+import { knockUpdates, updatePeers } from '../../shared/update';
 
 export type NotifyDeps = {
   readonly testMode: boolean;
@@ -52,6 +56,10 @@ export class Notifier {
   private readonly withCards = new Set<string>();
   private readonly places = new Map<string, Place>();
   private readonly shown = new Map<string, { note: Note; n: Notification | null }>();
+  /** the core's last projects rows (single-update: an update item's answer goes to every hub that asks) */
+  private rows: readonly { readonly project: string; readonly cards?: readonly Card[] }[] = [];
+  /** the releases that already knocked: one notification per release (single-update) */
+  private readonly releases = new Set<string>();
 
   private authState: NotifyAuth;
   /** a quiet moment now (the helper: a call, screen sharing, full screen): a question arrives silent */
@@ -125,6 +133,12 @@ export class Notifier {
   /** The core's events: projects rows (names, and their cards), a project's cards. */
   onCoreEvent(ev: Record<string, unknown>): void {
     if (ev['ev'] === 'projects' && Array.isArray(ev['projects'])) {
+      // single-update: an update item's answer goes to every hub that asks, read from the rows
+      this.rows = (ev['projects'] as unknown[]).flatMap((p) => {
+        if (typeof p !== 'object' || p === null || typeof (p as Record<string, unknown>)['project'] !== 'string') return [];
+        const o = p as Record<string, unknown>;
+        return Array.isArray(o['cards']) ? [{ project: o['project'] as string, cards: o['cards'] as Card[] }] : [{ project: o['project'] as string }];
+      });
       for (const p of ev['projects'] as Record<string, unknown>[]) {
         const id = typeof p['project'] === 'string' ? p['project'] : null;
         if (id === null) continue;
@@ -147,7 +161,11 @@ export class Notifier {
     // a card leaves when its project's own list drops it (its row's when it has no cards event)
     if (from === 'cards' || !this.withCards.has(project)) for (const k of gone) this.close(k);
     if (fresh.length === 0 || !knocks(this.focused())) return;
-    for (const c of fresh) this.post(noteOf({ ...c, project }, this.places.get(project), this.d.lang, this.quiet));
+    // one update prompt (single-update): a release knocks once, the first of it; the others of
+    // the batch never do, and the release asks no more while its notification stands
+    const { post, keys } = knockUpdates(fresh, this.releases);
+    for (const k of keys) this.releases.add(k);
+    for (const c of post) this.post(noteOf({ ...c, project }, this.places.get(project), this.d.lang, this.quiet));
   }
 
   private line(o: unknown): void {
@@ -281,10 +299,18 @@ export class Notifier {
       this.d.open(e.route);
       return true;
     }
-    const sent = this.d.send(e.cmd);
-    if (this.d.testMode) this.line({ t: 'answer', key, cmd: e.cmd, sent });
-    if (!sent) this.failed(s.note);
-    return sent;
+    // one update prompt (single-update): the answer goes to every hub that asks, each by its own
+    // card id, as the window's does — one install, every hub switches
+    const peers = s.note.release === undefined ? [{ project: s.note.project, card: s.note.card }] : updatePeers(this.rows, s.note.project, s.note.card);
+    let ok = true;
+    for (const t of peers) {
+      const cmd = { ...e.cmd, project: t.project, card: t.card };
+      const sent = this.d.send(cmd);
+      if (this.d.testMode) this.line({ t: 'answer', key, cmd, sent });
+      if (!sent) ok = false;
+    }
+    if (!ok) this.failed(s.note);
+    return ok;
   }
 
   /** One more notification: the answer didn't leave; a click opens the inbox where it still waits. */

@@ -13,6 +13,11 @@
 // (HubFacts) and optPlan.ts: its artifact's view beside the thread (nav), his browser (fx
 // openExternal), the app's sign-in (cmd); nothing is sent to the hub and the card stays. No act:
 // his answer. The app's edge (app/edge.tsx) runs nav and fx.
+// One update prompt (single-update): his answer or close of a new-release item (kind `update`,
+// place `release:<id>`, shared/update.ts) goes to every hub whose row lists an open card of that
+// release, each by its own card id — one install, every hub switches — so one gesture may make
+// one command per hub that asks; any other card: the one hub he answered. The inbox's one list
+// keeps one card of each release (inbox/listed.ts dedupeUpdates), so the prompt shows once.
 // Pure. Owner: amb-core.
 import type { OptAct } from "@/proto/rows";
 import { inboxCards, withRefused, type InboxItem } from "@/inbox/listed";
@@ -22,6 +27,7 @@ import { leaves } from "@/artifacts/model";
 import { actedAdd, actedAnswered, actedKey, actedOf, actedPrune, type Acted } from "../acted";
 import { refusedAdd, refusedDrop, refusedListOf, refusedOf, refusedPrune, type Attempt, type Refused } from "../refused";
 import { answeredFromOf, answersOf, cardKeyOf, jumpOf, keptAnswers, type AnswerAt, type AnswerFrom, type AnsweredFrom } from "../answered";
+import { updatePeers } from "@/shared/update";
 import type { HubFacts, Input, Intent, Output, WinEv } from "./types";
 
 /** Where the window goes for an answer the hub took: that thread, at that card's answer; `seq` counts them. */
@@ -155,28 +161,45 @@ function does(s: CardsState, f: HubFacts, intent: Intent, at: number): Step {
       const { project, card, reply, parts, from } = intent;
       // answer-in-thread A: where he was, for the row's 'answered from …' and the jump (answered.ts)
       const answering = from === undefined ? s.answering : { ...s.answering, [cardKeyOf(project, card)]: from };
-      const [next, out] = acts({ ...s, answering }, project, card, at, {
-        kind: "answer",
-        reply,
-        ...(parts !== undefined ? { parts } : {}),
-        ...(from !== undefined ? { from } : {}),
-      });
-      out.push({
-        out: "cmd",
-        cmd: {
-          cmd: "answer",
-          project,
-          card,
+      let s2: CardsState = { ...s, answering };
+      const out: Output[] = [];
+      // one update prompt (single-update): a new release's item goes to every hub that asks —
+      // one install, every hub switches — each by its own card id (ids are per hub); any other
+      // card: the one hub he answered (updatePeers: the card itself alone)
+      for (const t of updatePeers(f.rows, project, card)) {
+        const mine = t.project === project && t.card === card;
+        const [next, o] = acts(s2, t.project, t.card, at, {
+          kind: "answer",
           reply,
-          ...(parts !== undefined && parts.length > 0 ? { parts: [...parts] } : {}),
-        },
-      });
-      return [next, out];
+          ...(mine && parts !== undefined ? { parts } : {}),
+          ...(mine && from !== undefined ? { from } : {}),
+        });
+        s2 = next;
+        out.push(...o);
+        out.push({
+          out: "cmd",
+          cmd: {
+            cmd: "answer",
+            project: t.project,
+            card: t.card,
+            reply,
+            ...(mine && parts !== undefined && parts.length > 0 ? { parts: [...parts] } : {}),
+          },
+        });
+      }
+      return [s2, out];
     }
     case "close": {
-      const [next, out] = acts(s, intent.project, intent.card, at, { kind: "close" });
-      out.push({ out: "cmd", cmd: { cmd: "close", project: intent.project, card: intent.card } });
-      return [next, out];
+      let s2 = s;
+      const out: Output[] = [];
+      // one update prompt: closing it without an answer closes it on every hub that asks
+      for (const t of updatePeers(f.rows, intent.project, intent.card)) {
+        const [next, o] = acts(s2, t.project, t.card, at, { kind: "close" });
+        s2 = next;
+        out.push(...o);
+        out.push({ out: "cmd", cmd: { cmd: "close", project: t.project, card: t.card } });
+      }
+      return [s2, out];
     }
     case "pick": {
       // the act the hub's row gives option n (rows::opt_act, read, never made here): it opens,

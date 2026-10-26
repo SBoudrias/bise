@@ -38,6 +38,29 @@ describe('CountKeeper', () => {
     expect(k.apply({ ev: 'cards', project: 'home', cards: [card(1)], others: [card(2)] })).toEqual({ waiting: 2, working: 0 });
   });
 
+  it('one update prompt, one count: a release waiting in several projects counts once, as the inbox lists it (single-update)', () => {
+    const upd = (place: string): Record<string, unknown> => ({ id: 3, kind: 'update', place, agent: 'main' });
+    const k = new CountKeeper();
+    expect(
+      k.apply({
+        ev: 'projects',
+        projects: [
+          { project: 'home', cards: [upd('release:7e187ba'), card(1)], working: 0 },
+          { project: 'shop', cards: [upd('release:7e187ba'), card(2)], working: 0 },
+          { project: 'telemetry', cards: [upd('release:a1b2c3d')], working: 1 },
+        ],
+      }),
+    ).toEqual({ waiting: 4, working: 1 });
+    // a hub's own cards event holds the same: still once
+    expect(k.apply({ ev: 'cards', project: 'shop', cards: [upd('release:7e187ba'), card(2)] })).toBeNull();
+    expect(k.counts).toEqual({ waiting: 4, working: 1 });
+    // the release settles in one hub, still asks in the other: the count stays one
+    expect(k.apply({ ev: 'projects', projects: [{ project: 'home', cards: [card(1)], working: 0 }, { project: 'shop', cards: [upd('release:7e187ba'), card(2)], working: 0 }, { project: 'telemetry', cards: [upd('release:a1b2c3d')], working: 1 }] })).toBeNull();
+    // gone everywhere (its hubs' own lists say so too: a cards event wins over its row): the plain cards
+    k.apply({ ev: 'cards', project: 'shop', cards: [card(2)] });
+    expect(k.apply({ ev: 'projects', projects: [{ project: 'home', cards: [card(1)], working: 0 }, { project: 'shop', cards: [card(2)], working: 0 }, { project: 'telemetry', cards: [], working: 1 }] })).toEqual({ waiting: 2, working: 1 });
+  });
+
   it('null when nothing changed or the event is not a count', () => {
     const k = new CountKeeper();
     expect(k.apply({ ev: 'projects', projects: [] })).toBeNull();

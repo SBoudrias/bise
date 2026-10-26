@@ -6,6 +6,11 @@
 // 50 cards acted on, two projects with the same card ids, main's answer before and after the rows
 // that drop the card. A red prints its seed and step: `SEED=<n> pnpm vitest run cards.law` replays it.
 //
+// One gesture, one command holds for every card these runs make (questions). An update item's
+// answer is one command per hub that asks (single-update, shared/update.ts): that rule's runs are
+// the feature test's (tests/feature/update.feature.test.ts), not here — the settling of each of
+// those commands (in flight, stale, refused, kept open) is this law's, unchanged per card.
+//
 // The spec model below says the rules in their own words (independent of acted.ts / refused.ts):
 // - a card he answered or closed is his act in flight until the hub settles it: its loaded row no
 //   longer lists it, or still lists it 60 s on (the hub answers in ms), or main says the hub took

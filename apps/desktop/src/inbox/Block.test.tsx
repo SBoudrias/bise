@@ -63,6 +63,40 @@ const mount = (here: Here = { project: P, agent: 'perf' }, events: typeof core_e
   return { sent, hub, told };
 };
 
+/** core_ev with two projects, each hub with its own item of the same release (single-update). */
+const BISE = 'bise-home-00000000';
+const withRelease = (): typeof core_ev =>
+  core_ev.map((e) =>
+    e.ev !== 'projects' || !e.projects.some((r) => r.home)
+      ? e
+      : {
+          ...e,
+          projects: e.projects.map((r) => {
+            const upd = (id: number): Card => ({
+              id,
+              project: r.project,
+              kind: 'update',
+              agent: 'main',
+              question: 'bise v2026.10.2-5 is out',
+              options: [
+                { n: 1, label: 'update now · your agents keep running' },
+                { n: 2, label: 'later' },
+              ],
+              urgent: false,
+              since_ms: 1791100300000,
+              approval: true,
+              place: 'release:7e187ba',
+              rank: 6,
+            });
+            return r.home
+              ? { ...r, cards: [upd(22)] }
+              : r.cards == null
+                ? r
+                : { ...r, cards: [...r.cards, upd(21)] };
+          }),
+        },
+  );
+
 describe('the inbox block (b2)', () => {
   it("folded: 'inbox · 2 waiting', a line per item in the inbox's order, ⌃1–2 open; nothing is told", () => {
     const { told } = mount();
@@ -212,6 +246,23 @@ describe('the inbox block (b2)', () => {
     expect(row.querySelector('.end')?.textContent).toMatch(/^acme · /u);
     fireEvent.click(row);
     expect(screen.getByTestId(`inbox.block.card.${P}-10.project`).textContent).toBe('· acme');
+  });
+
+  it("one new release, one item (single-update): the home hub's card only, bise's own wherever he is, and its answer goes to every hub that asks", () => {
+    const { hub } = mount({ project: P, agent: 'perf' }, withRelease());
+    // one row for the release, never one per project (acme's own view lists it too)
+    expect(screen.getByTestId('inbox.block').textContent).toContain('3 waiting');
+    const row = screen.getByTestId('inbox.block.row.3');
+    expect(row.textContent).toContain('bise v2026.10.2-5 is out');
+    // bise's own: no project in its row, none in its open card
+    expect(row.querySelector('.end')?.textContent).not.toContain('acme');
+    fireEvent.click(row);
+    expect(screen.queryByTestId(`inbox.block.card.${BISE}-22.project`)).toBeNull();
+    // '1 update now': every hub that asks, each by its own card id
+    fireEvent.keyDown(window, { key: '1' });
+    expect(hub()).toContainEqual({ cmd: 'answer', project: BISE, card: 22, reply: '1' });
+    expect(hub()).toContainEqual({ cmd: 'answer', project: P, card: 21, reply: '1' });
+    expect(hub()).toHaveLength(2);
   });
 });
 

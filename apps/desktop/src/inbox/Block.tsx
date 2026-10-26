@@ -2,7 +2,10 @@
 // inbox-native v2): ONE inbox, every project's open items, as the TUI's, mounted once by the shell
 // right above the composer under every screen (amb-win's b1: ThreadScreen, BottomBlock); in a
 // project's view only that project's items, on bise's view and the inbox screen every project's
-// (scope.ts, his inbox-scope ask; an explicit open of another project's item widens it). Folded it is
+// (scope.ts, his inbox-scope ask; an explicit open of another project's item widens it). One update
+// prompt (single-update): a new release's items dedupe to one card (listed.ts), bise's own — it
+// lists in every project's view and its card names no project — and its answer goes to every hub
+// that asks (the store's machine, through shared/update.ts). Folded it is
 // 'inbox · 3 waiting  ⌃1–3 open', a line per item up to 3 (fewer in a short window), then '+ N more ·
 // ? who · words' (the TUI's box, card_draw.rs); ⌃n, a click, ⌘I (openInbox) or a notification
 // click (openInbox({project, card})) opens that item IN PLACE (the block grows, nothing floats over
@@ -22,6 +25,7 @@ import { common } from '@/proto/words_common.gen';
 import { age, dotOf, folds, InboxCard, RefusedMark } from './InboxCard';
 import { useMenuAction } from '@/app/menu';
 import { cardKey } from './order';
+import { isUpdate, releaseKey } from '@/shared/update';
 import { pickWaits, takesWords } from './model';
 import { withRefused, type InboxItem } from './listed';
 import { fitRows, rowWords, STRIP_KEYS, STRIP_ROWS, stripKey } from './stripRows';
@@ -244,7 +248,9 @@ export function answeringOf(c: Card, here: Here, pname?: string): Answering {
   const to = here.agent === null ? 'bise' : shownName(here.agent);
   // the permission ask is bise's own, never the hub's: only its two options answer it
   if (isNotify(c)) return { project: c.project, card: c.id, label: inbox.notify_waits({ to }), answer: null };
-  const other = here.project !== null && here.project !== c.project ? `${shownName(c.agent)} · ${pname ?? c.project}` : null;
+  // the one update prompt is bise's own (single-update): never another project's, even opened
+  // from another project's view
+  const other = here.project !== null && here.project !== c.project && !isUpdate(c) ? `${shownName(c.agent)} · ${pname ?? c.project}` : null;
   if (takesWords(c)) {
     // composer-target A (designer m_26531): '↳ answering search · <question>' (the tab cuts it after
     // a whole word), 'esc to bise instead', the field names who gets his words, the border's tip
@@ -271,7 +277,7 @@ export function answeringOf(c: Card, here: Here, pname?: string): Answering {
  */
 export function closedAnswering(c: Card, here: Here, pname?: string): Answering {
   const to = here.agent === null ? 'bise' : shownName(here.agent);
-  const other = here.project !== null && here.project !== c.project ? `${shownName(c.agent)} · ${pname ?? c.project}` : shownName(c.agent);
+  const other = here.project !== null && here.project !== c.project && !isUpdate(c) ? `${shownName(c.agent)} · ${pname ?? c.project}` : shownName(c.agent);
   return { project: c.project, card: c.id, label: inbox.to_closed({ who: other }), end: inbox.esc_instead({ to }), answer: null, asker: c.agent, closed: true };
 }
 
@@ -483,15 +489,23 @@ export function InboxBlock({ here, onAnswer, now: pinned, only, rest }: InboxBlo
   );
 
   // ⌘I, '/inbox' and a notification click: that card, else the first item; one the filter leaves
-  // out widens the block (wide). False: nothing waits anywhere, the caller says so
-  const latest = useRef({ list, all });
+  // out widens the block (wide). False: nothing waits anywhere, the caller says so. A new
+  // release's one notification names the card that knocked, which the deduped list may not hold
+  // (another hub's card of the same release shows): the card of that release opens.
+  const latest = useRef({ list, all, rows });
   useEffect(() => {
-    latest.current = { list, all };
+    latest.current = { list, all, rows };
   });
   useEffect(() => {
     const f = (at: OpenAt): boolean => {
-      const { list: l, all: every } = latest.current;
-      const find = (xs: readonly Card[]) => (at !== undefined ? xs.find((c) => c.project === at.project && c.id === at.card) : xs[0]);
+      const { list: l, all: every, rows: rs } = latest.current;
+      const asked = at === undefined ? undefined : rs.find((r) => r.project === at.project)?.cards?.find((x) => x.id === at.card);
+      const rel = asked === undefined ? '' : releaseKey(asked);
+      const find = (xs: readonly Card[]) =>
+        at === undefined
+          ? xs[0]
+          : (xs.find((c) => c.project === at.project && c.id === at.card) ??
+            (rel !== '' ? xs.find((c) => isUpdate(c) && releaseKey(c) === rel) : undefined));
       const inView = find(l);
       const want = inView ?? find(every);
       if (want === undefined) return false;
@@ -755,7 +769,8 @@ export function InboxBlock({ here, onAnswer, now: pinned, only, rest }: InboxBlo
             <div key={cardKey(c)} className="inbox-block-open" data-testid={`inbox.block.open.${String(n)}`} data-answering={(told?.answer != null && told.closed !== true) || undefined}>
               <InboxCard
                 card={c}
-                project={projectWord(row, c.project)}
+                // the one update prompt is bise's own, wherever its card came from: no project
+                {...(isUpdate(c) ? { home: true } : { project: projectWord(row, c.project) })}
                 now={now}
                 on={on}
                 full={whole === cardKey(c)}
@@ -822,7 +837,7 @@ export function InboxBlock({ here, onAnswer, now: pinned, only, rest }: InboxBlo
             }
             end={
               <>
-                {scoped ? age(now - c.since_ms) : `${projectWord(row, c.project)} · ${age(now - c.since_ms)}`}
+                {scoped || isUpdate(c) ? age(now - c.since_ms) : `${projectWord(row, c.project)} · ${age(now - c.since_ms)}`}
                 <CardId id={c.id} testId={`inbox.block.row.${String(n)}.id`} />
               </>
             }
